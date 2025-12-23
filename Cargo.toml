@@ -1,0 +1,9 @@
+[package]
+name = "dig-collateral-coin"
+description = "A libary to expose just the DIG Collateral Coin utility"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+datalayer-driver = "3.0.0"
+num-bigint = "0.4.6"
