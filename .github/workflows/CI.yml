@@ -33,7 +33,7 @@ jobs:
           toolchain: stable
 
       - name: Clippy
-        run: rustup component add clippy && cargo clippy --workspace --all-features --all-targets -D warnings
+        run: rustup component add clippy && cargo clippy --workspace --all-features --all-targets -- -D warnings
 
       - name: Unused dependencies
         run: |
