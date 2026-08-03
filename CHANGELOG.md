@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org) and
 [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.1.3] - 2026-08-03
+
+### Bug Fixes
+- **collateral-coin:** Add license + repository metadata for crates.io publish (#3)
+
 ## [0.1.2] - 2026-07-22
 
 ### Documentation
