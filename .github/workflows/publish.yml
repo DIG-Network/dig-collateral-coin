@@ -72,16 +72,16 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GH_ACCESS_TOKEN }}
         with:
           tag_name: ${{ github.ref }}
-          release_name: "dig-constants v${{ steps.extract_version.outputs.VERSION }}"
+          release_name: "dig-collateral-coin v${{ steps.extract_version.outputs.VERSION }}"
           body: |
-            ## dig-constants v${{ steps.extract_version.outputs.VERSION }}
+            ## dig-collateral-coin v${{ steps.extract_version.outputs.VERSION }}
 
-            DIG network constants — genesis challenge, consensus parameters, and network configuration.
+            A crate that exposes the Datalayer Driver DIG Collateral Coin utility.
 
             ### Installation
             ```toml
             [dependencies]
-            dig-constants = "${{ steps.extract_version.outputs.VERSION }}"
+            dig-collateral-coin = "${{ steps.extract_version.outputs.VERSION }}"
             ```
           draft: false
           prerelease: false
