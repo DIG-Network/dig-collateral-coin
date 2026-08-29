@@ -198,3 +198,4 @@ as "not a validated `$DIG` coin of the expected kind" — never assume success f
   `chia_wallet_sdk` responsibilities. A consumer needing byte-level puzzle conformance tests should
   consult the upstream crates' own test suites and the docs.dig.net protocol pages for the `$DIG` CAT
   payment and DIG store discovery-hint contracts.
+
