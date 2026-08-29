@@ -1,11 +1,18 @@
 [package]
 name = "dig-collateral-coin"
 description = "A libary to expose just the DIG Collateral Coin utility"
-version = "0.1.4"
+version = "0.2.0"
 edition = "2024"
 license = "Apache-2.0 OR MIT"
 repository = "https://github.com/DIG-Network/dig-collateral-coin"
 
 [dependencies]
-datalayer-driver = "3.0.0"
+datalayer-driver = "6.0.0"
 num-bigint = "0.4.6"
+
+[dev-dependencies]
+# The canonical owner of the mirror namespace, so the conformance suite compares this crate's
+# surface against it on computed values rather than on prose.
+dig-mirror-coin = "0.7"
+chia-protocol = "0.36.1"
+clvm-utils = "0.36.1"
