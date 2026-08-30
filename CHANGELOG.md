@@ -4,6 +4,11 @@ All notable changes to this project are documented here.
 This project adheres to [Semantic Versioning](https://semver.org) and
 [Conventional Commits](https://www.conventionalcommits.org).
 
+## [0.2.0] - 2026-08-30
+
+### Features
+- Drop the mirror namespace and make SPEC §7's byte contract true (#5)
+
 ## [0.1.4] - 2026-08-05
 
 ### Bug Fixes
