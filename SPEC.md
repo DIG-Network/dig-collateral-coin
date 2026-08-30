@@ -134,28 +134,47 @@ additions:
 
 ## 7. Morphed-ID namespacing
 
-Store launcher IDs are **morphed** into distinct namespaces (tree hashes) so that on-chain discovery
-hints for collateral vs. mirror coins of the SAME store do not collide, and so that mirror coins of
-different epochs of the same store are independently discoverable:
+Store launcher IDs are **morphed** into a namespace (a tree hash) so that on-chain discovery hints
+for one kind of collateral coin do not collide with another kind anchored to the same store.
+
+This crate vends exactly one such morph:
 
 - `DigCollateralCoin::morph_store_launcher_id_for_collateral(store_id: Bytes32) -> Bytes32` —
-  derives the hint namespace used for collateral-coin discovery for `store_id`.
-- `DigCollateralCoin::morph_store_launcher_id_for_mirror(store_id: Bytes32, epoch: &BigInt) ->
-  Bytes32` — derives the hint namespace used for mirror-coin discovery for `store_id` at `epoch`.
+  derives the hint namespace used for **store-collateral** discovery for `store_id`. It is the tree
+  hash of `store_id` under the tag `DIG_STORE_COLLATERAL`.
 
-A consumer discovers existing collateral/mirror coins by computing the appropriate morphed hint and
-querying a full node for unspent coin states carrying that hint (e.g.
-`datalayer_driver::get_unspent_coin_states_by_hint`), then validating each candidate via
-`from_coin_state` (§5) and confirming ownership.
+A consumer discovers existing store-collateral coins by computing that hint and querying a full node
+for unspent coin states carrying it (e.g. `datalayer_driver::get_unspent_coin_states_by_hint`), then
+validating each candidate via `from_coin_state` (§5) and confirming ownership.
 
-**Byte contract:** this is a shared on-chain contract between the DIG store/node discovery path and
-any wallet-side collateral/mirror tooling — the SAME morph derivation MUST be used on both sides for
-hints to line up (see the superproject `SYSTEM.md` for the cross-repo discovery-hint contract). The
-exact tree-hash derivation formula is implemented upstream in `datalayer_driver`/`chia_wallet_sdk`
-and is outside this repository's verifiable surface; this crate's contract is that
-`morph_store_launcher_id_for_collateral`/`morph_store_launcher_id_for_mirror` deterministically
-derive the SAME namespace hash that the corresponding discovery-hint consumer expects — consumers
-MUST call these functions rather than re-deriving the hash independently.
+**Byte contract:** the store-collateral hint is a shared on-chain contract between the DIG store/node
+discovery path and any wallet-side collateral tooling — the SAME morph MUST be used on both sides for
+hints to line up. Consumers MUST call `morph_store_launcher_id_for_collateral` rather than
+re-deriving the hash independently. The derivation is implemented upstream in `datalayer_driver`; the
+contract this crate makes is that it forwards that upstream derivation unchanged, which
+`tests/mirror_namespace_separation.rs` pins on computed values.
+
+### 7.1 Mirror collateral is NOT served by this crate
+
+Mirror-collateral hints are owned by the **`dig-mirror-coin`** crate, and a consumer needing one MUST
+call `dig_mirror_coin::mirror_hint`. This crate offers no mirror morph and no mirror mint path.
+
+That is a deliberate retirement, not an omission. `datalayer_driver` before 6.0.0 exposed
+`DigCollateralCoin::morph_store_launcher_id_for_mirror`, deriving a hint from
+`morph(store_launcher_id + epoch)` under the tag `DIG_STORE_MIRROR_COLLATERAL` — the same tag
+`dig-mirror-coin` uses for `morph(store + root + owner + epoch)`.
+
+**Those were not two namespaces sharing a tag; they were one namespace.** Both morphs hash an
+additive sum, so the extra terms are absorbed rather than separating the two: an author who chooses
+the epoch freely can solve `e' = store + epoch - store' - root' - owner'` and land a coin bonding
+their own store and root exactly on a hint derived by the two-term form. `dig-mirror-coin` closes
+that by having the coin **declare** its four terms and checking the declaration term by term as well
+as recomputing the hint (`MirrorCoin::advertises`); the two-term form had no equivalent check and
+could not gain one, because the epoch a coin was really built with is not recoverable from its hint.
+
+The two-term morph and its `create_mirror` mint path were therefore removed in `datalayer_driver`
+6.0.0. Coins already minted through it are unaffected: `from_coin_state` reads the morphed id out of
+the coin's memos and never recomputes it, and `spend` does not use the hint.
 
 ## 8. Memo layout
 
@@ -198,3 +217,4 @@ as "not a validated `$DIG` coin of the expected kind" — never assume success f
   `chia_wallet_sdk` responsibilities. A consumer needing byte-level puzzle conformance tests should
   consult the upstream crates' own test suites and the docs.dig.net protocol pages for the `$DIG` CAT
   payment and DIG store discovery-hint contracts.
+

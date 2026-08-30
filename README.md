@@ -1,6 +1,6 @@
 dig-collateral-coin
 
-Thin, ergonomic re-export crate that surfaces the minimal interfaces you need to work with $DIG CAT coins and $DIG collateral/mirror coins on Chia using the upstream `datalayer_driver` and `chia_wallet_sdk` libraries.
+Thin, ergonomic re-export crate that surfaces the minimal interfaces you need to work with $DIG CAT coins and $DIG store-collateral coins on Chia using the upstream `datalayer_driver` and `chia_wallet_sdk` libraries.
 
 This crate intentionally exposes only a small surface area while remaining fully compatible with the broader upstream ecosystem.
 
@@ -15,16 +15,20 @@ This crate intentionally exposes only a small surface area while remaining fully
   - A Chia Asset Token (CAT) representing the $DIG token.
   - The `DigCoin` helper validates a coin is a bona fide $DIG CAT and exposes the parsed `Cat` driver so you can spend it.
 
-- Collateral and Mirror coins
+- Store-collateral coins
   - Collateral coins are $DIG locked by a `P2Parent` puzzle for a given store. They secure a DIG store and can be reclaimed by the creator.
-  - Mirror coins are $DIG locked similarly, but tagged for a specific epoch and with mirror URLs in memos for replication.
   - `DigCollateralCoin` wraps the logic to detect, construct, and spend these coins.
 
-- Namespacing via morphed IDs and memos
-  - Store launcher IDs are morphed into distinct namespaces (tree hashes) to derive hints/memos used for discovery on-chain:
-    - `morph_store_launcher_id_for_collateral(store_id)` → hint for collateral coins
-    - `morph_store_launcher_id_for_mirror(store_id, epoch)` → hint for mirror coins
-  - Mirror coins store additional memos (UTF-8 URLs) following the morphed store ID.
+- Mirror-collateral coins live in the `dig-mirror-coin` crate
+  - This crate does not derive mirror hints and does not mint mirror coins. Use
+    [`dig-mirror-coin`](https://crates.io/crates/dig-mirror-coin), which owns that namespace, and see
+    `SPEC.md` §7.1 for why the ancestor of that derivation was removed from here rather than renamed.
+  - `DigCollateralCoin::from_coin_state` and `spend` still work on mirror coins already on chain: they
+    read the morphed id out of the coin's memos and never recompute it.
+
+- Namespacing via morphed IDs
+  - A store launcher ID is morphed into a namespace (a tree hash) to derive the hint used for discovery
+    on-chain: `morph_store_launcher_id_for_collateral(store_id)` → hint for store-collateral coins.
 
 - Standard layer (synthetic key)
   - Collateral coins are controlled by a standard P2 (synthetic) key layer. You must use the same synthetic public key to create and later reclaim collateral.
@@ -158,47 +162,7 @@ async fn find_my_highest_collateral(
 }
 ```
 
-### 5) Create mirror coins
-
-Mirror coins include the morphed store id and a list of mirror URLs in the memos; they are also tied to an epoch value.
-
-```
-async fn create_store_mirror(
-    network: datalayer_driver::NetworkType,
-    ssl_cert: &str,
-    ssl_key: &str,
-    public_synthetic_key: PublicKey,
-    dig_inputs: Vec<DigCoin>,
-    store_id: Bytes32,
-    epoch: num_bigint::BigInt,
-    mirror_urls: Vec<String>,
-) -> anyhow::Result<datalayer_driver::TransactionAck> {
-    let peer = connect_random(network, ssl_cert, ssl_key).await?;
-    let fee = get_fee_estimate(&peer, 60).await?;
-
-    let amount: u64 = 1_000_000; // example
-    let xch_fee_coins = /* your wallet selects fee coins */ Vec::<chia::protocol::Coin>::new();
-
-    let spends = DigCollateralCoin::create_mirror(
-        dig_inputs,
-        amount,
-        store_id,
-        mirror_urls,
-        epoch,
-        public_synthetic_key,
-        xch_fee_coins,
-        fee,
-    )?;
-
-    let synthetic_sk = /* your wallet synthetic private key */ datalayer_driver::PrivateKey::from(&[0u8; 32]);
-    let sig = sign_coin_spends(&spends, &[synthetic_sk], network != datalayer_driver::NetworkType::Mainnet)?;
-    let bundle = SpendBundle::new(spends, sig);
-
-    Ok(broadcast_spend_bundle(&peer, bundle).await?)
-}
-```
-
-### 6) Reclaim collateral (or mirror) coins you own
+### 5) Reclaim collateral coins you own
 
 Spend the P2Parent-locked coin back to your standard P2 synthetic key.
 
@@ -241,12 +205,10 @@ This crate re-exports the following items from upstream so you can build apps wi
   - `DigCollateralCoin`
     - `fn coin(&self) -> Coin` — the underlying coin.
     - `fn proof(&self) -> LineageProof` — lineage proof used to verify control and spendability.
-    - `async fn from_coin_state(peer: &Peer, coin_state: CoinState) -> Result<Self, WalletError>` — instantiate and verify a P2Parent $DIG collateral/mirror coin.
+    - `async fn from_coin_state(peer: &Peer, coin_state: CoinState) -> Result<Self, WalletError>` — instantiate and verify a P2Parent $DIG collateral coin (including a mirror coin minted by `dig-mirror-coin`).
     - `fn create_collateral(dig_coins, amount, store_id, synthetic_key, fee_coins, fee) -> Result<Vec<CoinSpend>, WalletError>` — build spends to create a collateral coin.
-    - `fn create_mirror(dig_coins, amount, store_id, mirror_urls, epoch, synthetic_key, fee_coins, fee) -> Result<Vec<CoinSpend>, WalletError>` — build spends to create mirror coins with memos.
     - `fn spend(&self, synthetic_key, fee_coins, fee) -> Result<Vec<CoinSpend>, WalletError>` — spend a collateral/mirror coin you control back to your P2 synthetic key.
     - `fn morph_store_launcher_id_for_collateral(store_id) -> Bytes32` — derive the collateral hint namespace.
-    - `fn morph_store_launcher_id_for_mirror(store_id, epoch: &BigInt) -> Bytes32` — derive the mirror hint namespace.
 
   - Networking and tx helpers
     - `connect_random(network, ssl_cert_path, ssl_key_path) -> Peer` — connect to a random peer for the given network.
@@ -281,7 +243,6 @@ These end-to-end flows are typical in higher-level apps that use this crate. Pse
 
 - Collateralize a store: select DIG + XCH, build spends via `create_collateral`, sign, broadcast.
 - Check if a store is collateralized: fetch by morphed hint, validate ownership, compare against required amount.
-- Create and enumerate mirror coins: derive mirror namespace with epoch, include URLs as memos, separate owned vs external.
 - Reclaim collateral: spend the P2Parent coin back to your synthetic P2 and receive unlocked $DIG.
 
 Refer to the Usage Guide for code snippets you can adapt directly.
@@ -294,7 +255,7 @@ Refer to the Usage Guide for code snippets you can adapt directly.
 - Collateral coin controlled by another wallet:
   - `spend()` validates the `parent_inner_puzzle_hash` matches the hash of your synthetic P2 layer; use the correct synthetic key pair.
 - No coins found by hint:
-  - Verify you derived the correct morphed store id and used the correct epoch for mirror coins.
+  - Verify you derived the correct morphed store id. Mirror-coin hints are not derived here — use `dig-mirror-coin`.
 - Fee or mempool rejection:
   - Increase fee via `get_fee_estimate` or set a manual fee; ensure fee XCH inputs are included.
 
